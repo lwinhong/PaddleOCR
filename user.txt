@@ -1,0 +1,72 @@
+python tools/infer/predict_system.py  --image_dir="D:\paddleocr\drivingData\output_page_1.png" --det_model_dir="./inference_model/ch_PP-OCRv4_det_infer" --rec_model_dir="./inference_model/ch_PP-OCRv4_rec_infer"
+
+ cd ppocrlabel
+ python PPOCRLabel.py --lang ch
+
+
+
+//训练 文字检查
+python tools/train.py -c configs/det/ch_ppocr_v2.0/ch_det_res18_db_v2.0.yml
+
+//验证
+python tools/infer_det.py -c configs/det/ch_ppocr_v2.0/ch_det_res18_db_v2.0.yml -o Global.pretrained_model=output/ch_db_res18/latest.pdparams Global.infer_img="D:\paddleocr\firsttest\001.png"
+
+-------
+
+//训练 文字识别
+python tools/train.py -c configs/rec/PP-OCRv4/ch_PP-OCRv4_rec.yml
+
+
+//验证
+python tools/infer_rec.py -c configs/rec/PP-OCRv4/ch_PP-OCRv4_rec.yml -o Global.pretrained_model=output/rec/best_accuracy.pdparams Global.infer_img="D:\paddleocr\firsttest\001.png"
+
+
+
+
+---------------------------表格训练---------------------------
+环境：
+git clone -b dygraph https://gitee.com/paddlepaddle/PaddleOCR
+pip install -r PaddleOCR/requirements.txt --force-reinstall
+pip install protobuf==3.19
+
+教程：
+https://github.com/PaddlePaddle/PaddleOCR/blob/main/doc/doc_ch/table_recognition.md#27-%E6%A8%A1%E5%9E%8B%E5%BE%AE%E8%B0%83
+https://aistudio.baidu.com/projectdetail/8175182
+
+
+下载预训练模型：https://paddleocr.bj.bcebos.com/ppstructure/models/slanet/ch_ppstructure_mobile_v2.0_SLANet_train.tar
+放到pretrain_models
+
+
+修改 configs/table/SLANet_ch.yml
+
+# GPU训练 支持单卡，多卡训练
+# 训练日志会自动保存为 "{save_model_dir}" 下的train.log
+
+#单卡训练（训练周期长，不建议）
+python tools/train.py -c configs/table/SLANet_ch.yml
+
+#多卡训练，通过--gpus参数指定卡号
+python3 -m paddle.distributed.launch --gpus '0,1,2,3'  tools/train.py -c configs/table/SLANet_ch.yml
+
+断点训练
+python tools/train.py -c configs/table/SLANet_ch.yml -o Global.checkpoints=output/SLANet_ch/latest.pdparams
+
+评估：
+# GPU 评估， Global.checkpoints 为待测权重
+python -m paddle.distributed.launch --gpus '0' tools/eval.py -c configs/table/SLANet_ch.yml -o Global.checkpoints=output/SLANet_ch/best_accuracy.pdparams Eval.dataset.data_dir=train_data/table Eval.dataset.label_file_list=[train_data/table/val.txt]
+
+best 预测
+# 预测表格图像
+python tools/infer_table.py -c configs/table/SLANet_ch.yml -o Global.pretrained_model=output/SLANet_ch/best_accuracy.pdparams  Global.infer_img=train_data/table/img/border_1_4ZT8GPERH8KKP6CUR9IN.jpg
+
+导出
+python tools/export_model.py -c configs/table/SLANet_ch.yml -o Global.pretrained_model=output/SLANet_ch/best_accuracy.pdparams  Global.save_inference_dir=inference/SLANet_ch/
+
+
+预测导出的模型
+python ppstructure/table/predict_structure.py  --table_model_dir=inference/SLANet_ch --table_char_dict_path=ppocr/utils/dict/table_structure_dict_ch.txt --image_dir=D:/PDF_00.jpg  --output=output/table
+
+
+
+
