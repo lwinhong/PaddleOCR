@@ -1,26 +1,28 @@
 Global:
-  use_gpu: True
-  epoch_num: 400
+  use_gpu: true
+  epoch_num: 50
   log_smooth_window: 20
-  print_batch_step: 5
-  save_model_dir: ./output/SLANet_ch
-  save_epoch_step: 400
-  # evaluation is run every 331 iterations after the 0th iteration
-  eval_batch_step: [0, 331]
+  print_batch_step: 10
+  save_model_dir: ./output/SLANet_lcnetv2
+  save_epoch_step: 20
+  # evaluation is run every 1000 iterations after the 0th iteration
+  eval_batch_step: [0, 1000]
   cal_metric_during_train: True
-  pretrained_model: ./pretrain_models/ch_ppstructure_mobile_v2.0_SLANet_train/best_accuracy.pdparams
-  checkpoints: ./output/SLANet_ch/best_accuracy.pdparams
-  save_inference_dir: ./output/SLANet_ch/infer
+  pretrained_model:
+  checkpoints:
+  save_inference_dir: ./SLANet_lcnetv2_infer
   use_visualdl: False
-  infer_img: ./train_data/table/img/border_1_4ZT8GPERH8KKP6CUR9IN.jpg
+  infer_img: ppstructure/docs/table/table.jpg
   # for data or label process
-  character_dict_path: ppocr/utils/dict/table_structure_dict_ch.txt
+  character_dict_path: ppocr/utils/dict/table_structure_dict.txt
   character_type: en
-  max_text_length: &max_text_length 1000
-  box_format: &box_format xyxyxyxy # 'xywh', 'xyxy', 'xyxyxyxy'
+  max_text_length: &max_text_length 500
+  box_format: &box_format 'xyxy' # 'xywh', 'xyxy', 'xyxyxyxy'
   infer_mode: False
   use_sync_bn: True
-  save_res_path: output/infer
+  save_res_path: 'output/infer'
+  d2s_train_image_shape: [3, -1, -1]
+  amp_custom_white_list: ['concat', 'elementwise_sub', 'set_value']
 
 Optimizer:
   name: Adam
@@ -28,7 +30,7 @@ Optimizer:
   beta2: 0.999
   clip_norm: 5.0
   lr:
-    learning_rate: 0.00017
+    learning_rate: 0.001
   regularizer:
     name: 'L2'
     factor: 0.00000
@@ -37,10 +39,7 @@ Architecture:
   model_type: table
   algorithm: SLANet
   Backbone:
-    name: PPLCNet
-    scale: 1.0
-    pretrained: True
-    use_ssld: True
+    name: PPLCNetV2_base
   Neck:
     name: CSPPAN
     out_channels: 96
@@ -48,7 +47,7 @@ Architecture:
     name: SLAHead
     hidden_size: 256
     max_text_length: *max_text_length
-    loc_reg_num: &loc_reg_num 8
+    loc_reg_num: &loc_reg_num 4
 
 Loss:
   name: SLALoss
@@ -66,15 +65,14 @@ Metric:
   compute_bbox_metric: False
   loc_reg_num: *loc_reg_num
   box_format: *box_format
-  del_thead_tbody: True
 
 Train:
   dataset:
     name: PubTabDataSet
-    data_dir: train_data/table/
-    label_file_list: [train_data/table/train.txt]
+    data_dir: ../table_data/pubtabnet/train/
+    label_file_list: [../table_data/pubtabnet/PubTabNet_2.0.0_train.jsonl]
     transforms:
-      - DecodeImage:
+      - DecodeImage: # load image
           img_mode: BGR
           channel_first: False
       - TableLabelEncode:
@@ -97,20 +95,20 @@ Train:
           size: [488, 488]
       - ToCHWImage:
       - KeepKeys:
-          keep_keys: ['image', 'structure', 'bboxes', 'bbox_masks', 'length', 'shape']
+          keep_keys: [ 'image', 'structure', 'bboxes', 'bbox_masks', 'length', 'shape' ]
   loader:
     shuffle: True
-    batch_size_per_card: 16
+    batch_size_per_card: 24
     drop_last: True
-    num_workers: 1
+    num_workers: 8
 
 Eval:
   dataset:
     name: PubTabDataSet
-    data_dir: train_data/table/
-    label_file_list: [train_data/table/val.txt]
+    data_dir: ../table_data/pubtabnet/val/
+    label_file_list: [../table_data/pubtabnet/PubTabNet_2.0.0_val.jsonl]
     transforms:
-      - DecodeImage:
+      - DecodeImage: # load image
           img_mode: BGR
           channel_first: False
       - TableLabelEncode:
@@ -133,9 +131,9 @@ Eval:
           size: [488, 488]
       - ToCHWImage:
       - KeepKeys:
-          keep_keys: ['image', 'structure', 'bboxes', 'bbox_masks', 'length', 'shape']
+          keep_keys: [ 'image', 'structure', 'bboxes', 'bbox_masks', 'shape' ]
   loader:
     shuffle: False
     drop_last: False
-    batch_size_per_card: 3
-    num_workers: 1
+    batch_size_per_card: 48
+    num_workers: 4
